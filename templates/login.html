@@ -1,0 +1,60 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Login</title>
+</head>
+<body>
+    <h2>User Login</h2>
+    <form id="loginForm" method="POST" enctype="multipart/form-data">
+        <label for="email">Email:</label>
+        <input type="email" id="email" name="email" required><br>
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" required><br>
+        <input type="file" id="key_file" name="key_file" accept=".txt" required><br>
+        <input type="submit" value="Login">
+    </form>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const formData = new FormData();
+            formData.append('email', document.getElementById('email').value);
+            formData.append('password', document.getElementById('password').value);
+            formData.append('public_key', await extractPublicKey(document.getElementById('key_file').files[0]));
+
+            // Send form data for validation
+            const response = await fetch('/login', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response.ok) {
+                // Redirect to the home page if login is successful
+                window.location.href = '/home';
+            } else {
+                alert('Login failed. Please check your credentials.');
+            }
+        });
+
+        // Function to extract public key from the uploaded file
+        function extractPublicKey(keyFile) {
+            return new Promise((resolve, reject) => {
+                const fileReader = new FileReader();
+                fileReader.onload = () => {
+                    const keysText = fileReader.result;
+                    const startIdx = keysText.indexOf("-----BEGIN PUBLIC KEY-----") + "-----BEGIN PUBLIC KEY-----".length;
+                    const endIdx = keysText.indexOf("-----END PUBLIC KEY-----");
+                    const publicKey = keysText.substring(startIdx, endIdx).trim();
+                    resolve(publicKey);
+                };
+                fileReader.onerror = () => {
+                    reject("Error reading file.");
+                };
+                fileReader.readAsText(keyFile);
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Registration</title>
+</head>
+<body>
+    <h2>User Registration</h2>
+    <form id="registrationForm" method="POST">
+        <label for="first_name">First Name:</label>
+        <input type="text" id="first_name" name="first_name" required><br>
+        <label for="last_name">Last Name:</label>
+        <input type="text" id="last_name" name="last_name" required><br>
+        <label for="email">Email:</label>
+        <input type="email" id="email" name="email" required><br>
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" required><br>
+        <!-- Hidden input field for public key -->
+        <input type="hidden" id="public_key" name="public_key" required><br>
+        <input type="submit" value="Register">
+    </form>
+
+    <script>
+        async function generateKeyPairAndSave() {
+            // Generate RSA key pair
+            const keyPair = await window.crypto.subtle.generateKey(
+                {
+                    name: 'RSA-OAEP',
+                    modulusLength: 2048,
+                    publicExponent: new Uint8Array([0x01, 0x00, 0x01]),
+                    hash: 'SHA-256',
+                },
+                true,
+                ['encrypt', 'decrypt']
+            );
+
+            // Extract public key
+            const publicKey = await window.crypto.subtle.exportKey(
+                'spki',
+                keyPair.publicKey
+            );
+
+            // Convert public key to PEM format
+            const pemPublicKey = `-----BEGIN PUBLIC KEY-----\n${arrayBufferToBase64(publicKey)}\n-----END PUBLIC KEY-----\n`;
+
+            // Set the public key value in the hidden input field
+            document.getElementById('public_key').value = arrayBufferToBase64(publicKey);
+
+            // Submit the registration form
+            document.getElementById('registrationForm').submit();
+
+            // Generate private key
+            const privateKey = await window.crypto.subtle.exportKey(
+                'pkcs8',
+                keyPair.privateKey
+            );
+
+            // Convert private key to base64-encoded string
+            const privateKeyBase64 = arrayBufferToBase64(privateKey);
+
+            // Create text content for the file
+            const fileContent = `Public Key:\n${pemPublicKey}\nPrivate Key:\n${privateKeyBase64}`;
+
+            // Create a Blob with the file content
+            const blob = new Blob([fileContent], { type: 'text/plain' });
+
+            // Prompt the user to save the file
+            const fileName = prompt("Enter file name:", "keys.txt");
+            if (fileName) {
+                const link = document.createElement('a');
+                link.href = window.URL.createObjectURL(blob);
+                link.download = fileName;
+                link.click();
+            }
+        }
+
+        // Convert array buffer to base64 function
+        function arrayBufferToBase64(buffer) {
+            const byteArray = new Uint8Array(buffer);
+            let byteString = '';
+            for (let i = 0; i < byteArray.byteLength; i++) {
+                byteString += String.fromCharCode(byteArray[i]);
+            }
+            return btoa(byteString);
+        }
+
+        // Handle form submission
+        document.getElementById('registrationForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            await generateKeyPairAndSave();
+        });
+    </script>
+</body>
+</html>

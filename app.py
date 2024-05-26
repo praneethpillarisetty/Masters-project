@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin, LoginManager, login_user, logout_user, current_user, login_required
 
@@ -29,6 +29,17 @@ def load_user(user_id):
 def index():
     return render_template('index.html')
 
+@app.route('/check_email', methods=['POST'])
+def check_email():
+    email = request.json.get('email')
+    print(f"Checking email: {email}")
+    existing_user = User.query.filter_by(email=email).first()
+    if existing_user:
+        print('User exists')
+        return jsonify({'exists': True})
+    print('User does not exist')
+    return jsonify({'exists': False})
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -36,22 +47,14 @@ def register():
         last_name = request.form['last_name']
         email = request.form['email']
         password = request.form['password']
-        public_key = request.form['public_key']
-
-        # Check if the email already exists in the database
-        existing_user = User.query.filter_by(email=email).first()
-        if existing_user:
-            print(existing_user)
-            return "Email already exists. Please choose a different email."
-
-        # Create a new user object
-        new_user = User(first_name=first_name, last_name=last_name, email=email, password=password, public_key=public_key)
-
-        # Add the user to the database
+        encrypted_public_key = request.form['public_key']
+        
+        new_user = User(first_name=first_name, last_name=last_name, email=email, password=password, public_key=encrypted_public_key)
+        
         db.session.add(new_user)
         db.session.commit()
-
-        return "User registered successfully!"
+        print('user is added')
+        return jsonify({'success': True})
     return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -59,10 +62,10 @@ def login():
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
-        publickey = request.form['public_key']
+        public_key = request.form['public_key']
         user = User.query.filter_by(email=email).first()
-
-        if user and user.password == password and publickey == user.public_key:
+        print(public_key,'\n',user.public_key)
+        if user and user.password == password and public_key == user.public_key:
             # Login user and store public key
             login_user(user)
             user_data = {'first_name': user.first_name, 'last_name': user.last_name, 'email': user.email, 'public_key': user.public_key}

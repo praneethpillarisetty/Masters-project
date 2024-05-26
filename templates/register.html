@@ -16,66 +16,93 @@
         <input type="email" id="email" name="email" required><br>
         <label for="password">Password:</label>
         <input type="password" id="password" name="password" required><br>
-        <!-- Hidden input field for public key -->
+        <!-- Hidden input fields for encrypted public key -->
         <input type="hidden" id="public_key" name="public_key" required><br>
+        <!-- Input field for specifying the file name -->
         <input type="submit" value="Register">
     </form>
 
     <script>
-        async function generateKeyPairAndSave() {
-            // Generate RSA key pair
-            const keyPair = await window.crypto.subtle.generateKey(
-                {
-                    name: 'RSA-OAEP',
-                    modulusLength: 2048,
-                    publicExponent: new Uint8Array([0x01, 0x00, 0x01]),
-                    hash: 'SHA-256',
+        async function checkEmailExists(email) {
+            const response = await fetch('/check_email', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
                 },
-                true,
-                ['encrypt', 'decrypt']
-            );
+                body: JSON.stringify({ email: email }),
+            });
+            const data = await response.json();
+            return data.exists;
+        }
 
-            // Extract public key
-            const publicKey = await window.crypto.subtle.exportKey(
-                'spki',
-                keyPair.publicKey
-            );
+        async function generateKeyPairAndSave() {
+            try {
+                // Generate RSA key pair
+                const keyPair = await window.crypto.subtle.generateKey(
+                    {
+                        name: 'RSA-OAEP',
+                        modulusLength: 2048,
+                        publicExponent: new Uint8Array([0x01, 0x00, 0x01]),
+                        hash: 'SHA-256',
+                    },
+                    true,
+                    ['encrypt', 'decrypt']
+                );
 
-            // Convert public key to PEM format
-            const pemPublicKey = `-----BEGIN PUBLIC KEY-----\n${arrayBufferToBase64(publicKey)}\n-----END PUBLIC KEY-----\n`;
+                // Export the public key
+                const publicKey = await window.crypto.subtle.exportKey('spki', keyPair.publicKey);
 
-            // Set the public key value in the hidden input field
-            document.getElementById('public_key').value = arrayBufferToBase64(publicKey);
+                // Generate a symmetric key for encrypting the public key
+                const symmetricKey = await window.crypto.subtle.generateKey(
+                    {
+                        name: 'AES-GCM',
+                        length: 256,
+                    },
+                    true,
+                    ['encrypt', 'decrypt']
+                );
 
-            // Submit the registration form
-            document.getElementById('registrationForm').submit();
+                // Encrypt the public key using the symmetric key
+                const encryptedPublicKey = await window.crypto.subtle.encrypt(
+                    {
+                        name: 'AES-GCM',
+                        iv: new Uint8Array(12),
+                    },
+                    symmetricKey,
+                    publicKey
+                );
 
-            // Generate private key
-            const privateKey = await window.crypto.subtle.exportKey(
-                'pkcs8',
-                keyPair.privateKey
-            );
+                // Export the symmetric key
+                const privateKeyBase64 = arrayBufferToBase64(await window.crypto.subtle.exportKey('pkcs8', keyPair.privateKey));
+                const symmetricKeyBase64 = arrayBufferToBase64(await window.crypto.subtle.exportKey('raw', symmetricKey));
+                const encryptedPublicKeyBase64 = arrayBufferToBase64(encryptedPublicKey);
 
-            // Convert private key to base64-encoded string
-            const privateKeyBase64 = arrayBufferToBase64(privateKey);
+                // Create text content for the file
+                const fileContent = `Public Key:\n${encryptedPublicKeyBase64}\nPrivate Key:\n${privateKeyBase64}\nSymmetric Key:\n${symmetricKeyBase64}\n`;
 
-            // Create text content for the file
-            const fileContent = `Public Key:\n${pemPublicKey}\nPrivate Key:\n${privateKeyBase64}`;
+                // Create a Blob with the file content
+                const blob = new Blob([fileContent], { type: 'text/plain' });
 
-            // Create a Blob with the file content
-            const blob = new Blob([fileContent], { type: 'text/plain' });
+                // Prompt the user to save the file
+                const fileName = prompt("Enter file name:", "keys.txt");
+                if (fileName) {
+                    const link = document.createElement('a');
+                    link.href = window.URL.createObjectURL(blob);
+                    link.download = fileName;
+                    link.click();
+                }
 
-            // Prompt the user to save the file
-            const fileName = prompt("Enter file name:", "keys.txt");
-            if (fileName) {
-                const link = document.createElement('a');
-                link.href = window.URL.createObjectURL(blob);
-                link.download = fileName;
-                link.click();
+                // Set the encrypted public key in the form field
+                document.getElementById('public_key').value = encryptedPublicKeyBase64;
+
+                return true;
+            } catch (error) {
+                console.error("Error during key generation and encryption:", error);
+                alert("An error occurred during the registration process. Please try again.");
+                return false;
             }
         }
 
-        // Convert array buffer to base64 function
         function arrayBufferToBase64(buffer) {
             const byteArray = new Uint8Array(buffer);
             let byteString = '';
@@ -85,10 +112,38 @@
             return btoa(byteString);
         }
 
-        // Handle form submission
         document.getElementById('registrationForm').addEventListener('submit', async (event) => {
-            event.preventDefault();
-            await generateKeyPairAndSave();
+            event.preventDefault(); // Prevent the form from submitting normally
+            const email = document.getElementById('email').value;
+            const emailExists = await checkEmailExists(email);
+            if (emailExists) {
+                alert('Email already exists. Redirecting to login page.');
+                window.location.href = '/login';
+            } else {
+                const keysGenerated = await generateKeyPairAndSave(); // Generate keys, encrypt the public key
+                if (keysGenerated) {
+                    const formData = new FormData(document.getElementById('registrationForm'));
+                    fetch('/register', {
+                        method: 'POST',
+                        body: formData
+                    })
+                        .then(response => {
+                            if (response.ok) {
+                                // Registration successful, redirect to login page
+                                alert('Registration successful! Redirecting to login page.');
+                                window.location.href = '/login';
+                            } else {
+                                // Handle registration error
+                                alert('Error during registration. Please try again.');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error during registration:', error);
+                            alert('An unexpected error occurred. Please try again.');
+                        });
+                }
+            }
+
         });
     </script>
 </body>

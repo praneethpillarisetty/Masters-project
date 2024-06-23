@@ -46,7 +46,7 @@
                 const fileReader = new FileReader();
                 fileReader.onload = () => {
                     const keysText = fileReader.result;
-                    const startIdx = keysText.indexOf("Public Key:") + "Public Key:".length;
+                    const startIdx = keysText.indexOf("EncryptedPublic Key:") + "EncryptedPublic Key:".length;
                     const endIdx = keysText.indexOf("Private Key:");
                     const publicKey = keysText.substring(startIdx, endIdx).trim();
                     resolve(publicKey);

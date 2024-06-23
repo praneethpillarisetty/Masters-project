@@ -1,0 +1,179 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>User Posts</title>
+    <script>
+        async function viewPost(postId) {
+            try {
+                const response = await fetch(`/get_file_data/${postId}`);
+                const postData = await response.json();
+                if (postData.error) {
+                    alert(postData.error);
+                    return;
+                }
+
+                const keysFileInput = document.getElementById(`keysFileInput${postId}`);
+                if (!keysFileInput.files || keysFileInput.files.length === 0) {
+                    alert("Please select the keys file.");
+                    return;
+                }
+
+                const file = keysFileInput.files[0];
+                const privateKeyBase64 = await extractPrivateKey(file);
+
+                // Decrypt symmetric key
+                const encryptedSymmetricKey = postData.encryption_key;
+                const privateKey = await importPrivateKey(privateKeyBase64);
+                const decryptedSymmetricKey = await decryptSymmetricKey(privateKey, encryptedSymmetricKey);
+                const SymmetricKey = await importSymmetricKey(decryptedSymmetricKey);
+                const encryptedFileData = postData.encrypted_file_data;
+                const fileData = await decryptFileContents(SymmetricKey, encryptedFileData);
+
+                if (fileData) {
+                    document.getElementById('fileContent').textContent = new TextDecoder().decode(fileData);
+                } else {
+                    throw new Error("Decryption returned empty data");
+                }
+            } catch (error) {
+                console.error("Error during file decryption:", error);
+                alert("Failed to decrypt the file. Please check the console for details.");
+            }
+        }
+
+        function extractPrivateKey(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    try {
+                        const keysText = reader.result;
+                        const startIdx = keysText.indexOf("Private Key:") + "Private Key:".length;
+                        const endIdx = keysText.indexOf("Symmetric Key:");
+                        if (startIdx === -1 || endIdx === -1) {
+                            reject(new Error("Private key or public key not found in the keys file"));
+                            return;
+                        }
+                        const privateKeyBase64 = keysText.substring(startIdx, endIdx).trim();
+                        resolve(privateKeyBase64);
+                    } catch (error) {
+                        reject(error);
+                    }
+                };
+                reader.onerror = reject;
+                reader.readAsText(file);
+            });
+        }
+
+        async function importPrivateKey(privateKeyBase64) {
+            const privateKeyArrayBuffer = base64ToArrayBuffer(privateKeyBase64);
+            return await window.crypto.subtle.importKey(
+                'pkcs8',
+                privateKeyArrayBuffer,
+                { name: 'RSA-OAEP', hash: 'SHA-256' },
+                true,
+                ['decrypt']
+            );
+        }
+
+        async function importSymmetricKey(symmetricKeyBase64) {
+            return await window.crypto.subtle.importKey(
+                'raw',
+                symmetricKeyBase64,
+                'AES-GCM',
+                true,
+                ['decrypt']
+            );
+        }
+
+        async function decryptSymmetricKey(privateKey, encryptedSymmetricKeyBase64) {
+            const encryptedSymmetricKey = base64ToArrayBuffer(encryptedSymmetricKeyBase64);
+            const decryptedSymmetricKey = await window.crypto.subtle.decrypt(
+                { name: 'RSA-OAEP' },
+                privateKey,
+                encryptedSymmetricKey
+            );
+            return decryptedSymmetricKey;
+        }
+
+        async function decryptFileContents(key, encryptedFileDataHex) {
+            try {
+                const encryptedFileData = hexToArrayBuffer(encryptedFileDataHex);
+
+                // Extract the IV from the beginning of the encrypted data
+                const iv = encryptedFileData.slice(0, 12);
+                const encryptedContent = encryptedFileData.slice(12);
+
+                // Decrypt using AES-GCM
+                const decryptedData = await window.crypto.subtle.decrypt(
+                    { name: 'AES-GCM', iv: iv },
+                    key,
+                    encryptedContent
+                );
+
+                return new Uint8Array(decryptedData);
+            } catch (error) {
+                console.error("Error decrypting file contents:", error);
+                throw new Error("Failed to decrypt file contents");
+            }
+        }
+
+
+        function base64ToArrayBuffer(base64) {
+            const binaryString = window.atob(base64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        function hexToArrayBuffer(hex) {
+            const bytes = new Uint8Array(Math.ceil(hex.length / 2));
+            for (let i = 0; i < bytes.length; i++) {
+                bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+            }
+            return bytes.buffer;
+        }
+
+        function symmetricKeysMatch(expectedKey, decryptedKey) {
+            return expectedKey === decryptedKey;
+        }
+
+        function arrayBufferToBase64(buffer) {
+            const byteArray = new Uint8Array(buffer);
+            let byteString = '';
+            for (let i = 0; i < byteArray.byteLength; i++) {
+                byteString += String.fromCharCode(byteArray[i]);
+            }
+            return btoa(byteString);
+        }
+    </script>
+</head>
+<body>
+    <h1>Your Uploaded Files</h1>
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Description</th>
+                <th>Tags</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for metadata in metadata_list %}
+            <tr>
+                <td>{{ metadata.description }}</td>
+                <td>{{ metadata.tags }}</td>
+                <td>
+                    <input type="file" id="keysFileInput{{ metadata.id }}" accept=".txt" style="display:none;">
+                    <button onclick="document.getElementById('keysFileInput{{ metadata.id }}').click()">Select Keys File</button>
+                    <button onclick="viewPost({{ metadata.id }})">View</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <pre id="fileContent"></pre>
+</body>
+</html>

@@ -1,0 +1,118 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search History</title>
+    <!-- CSS styles for the menu and scrollable boxes -->
+    <style>
+        /* Styles for the stationary menu */
+        .menu {
+            background-color: #333;
+            color: white;
+            padding: 10px 0; /* Adjust padding to center */
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            overflow-x: auto; /* Enable horizontal scrollbar */
+            font-size: 14px; /* Adjust font size for readability */
+        }
+
+            .menu h1 {
+                text-align: center; /* Align text to center */
+                margin: 0; /* Remove default margin */
+            }
+
+            .menu ul {
+                list-style-type: none;
+                padding: 0;
+                margin: 0;
+                text-align: left; /* Align menu items to the left */
+            }
+
+                .menu ul li {
+                    display: inline;
+                    margin-right: 20px;
+                    color: #fff; /* Change color of menu items */
+                }
+
+        /* Logout button */
+        .logout {
+            float: right;
+        }
+
+        /* Styles for the scrollable boxes */
+        .box {
+            width: 90%;
+            height: 300px;
+            overflow-y: scroll; /* Enable vertical scrollbar */
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin: 20px auto;
+        }
+
+            .box h2 {
+                margin-top: 0; /* Remove default margin for h2 */
+            }
+
+        /* Clear floats */
+        .clearfix::after {
+            content: "";
+            clear: both;
+            display: table;
+        }
+
+        /* Search bar */
+        .search-container {
+            margin-top: 20px;
+            padding: 0 20px;
+        }
+
+            .search-container input[type=text] {
+                padding: 10px;
+                width: 70%;
+            }
+
+            .search-container button {
+                padding: 10px 20px;
+            }
+    </style>
+</head>
+<body>
+    <!-- Stationary menu -->
+    <div class="menu">
+        <h1>My App</h1>
+        <ul>
+            <li><button onclick="location.href='home';">Home</button></li>
+            <li><button onclick="location.href='upload';">Upload</button></li>
+            <li><button onclick="location.href='view_post';">View_Post</button></li>
+            <li><button onclick="location.href='profile';">Profile</button></li>
+            <li><button onclick="location.href='settings';">Settings</button></li>
+            <li><button onclick="location.href='search_history';">Search History</button></li> <!-- Link to search_history.html -->
+            <li class="logout"><button onclick="location.href='/logout';">Logout</button></li> <!-- Logout button -->
+            <!-- Add more menu items as needed -->
+        </ul>
+    </div>
+
+    <!-- Scrollable box 2 with data -->
+    <div class="box">
+        <h2>Search History</h2>
+        <!-- Search bar -->
+        <div class="search-container">
+            <input type="text" placeholder="Search...">
+            <button>Search</button>
+        </div>
+        <p>
+            <!-- Dummy data for search history -->
+            <!-- You can replace this with actual search history -->
+            Search query 1<br>
+            Search query 2<br>
+            Search query 3<br>
+            Search query 4<br>
+            Search query 5<br>
+            <!-- Add more data as needed -->
+        </p>
+    </div>
+
+    <!-- Clear floats -->
+    <div class="clearfix"></div>
+</body>
+</html>

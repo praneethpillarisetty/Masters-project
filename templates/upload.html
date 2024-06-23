@@ -1,0 +1,160 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>File Encryption</title>
+</head>
+<body>
+    <h1>Encrypt and Upload a File</h1>
+    <form id="uploadForm" method="post" action="/upload" enctype="multipart/form-data">
+        <label for="fileInput">Select the file to encrypt and upload:</label>
+        <input type="file" id="fileInput" name="file" required>
+        <br>
+        <label for="keysFileInput">Select the keys file :</label>
+        <input type="file" id="keysFileInput" accept=".txt" required>
+        <br>
+        <label for="description">Description:</label>
+        <input type="text" id="description" name="description">
+        <br>
+        <label for="tags">Tags (at least 3):</label>
+        <input type="text" id="tags" name="tags" required>
+        <br>
+        <button type="submit">Upload</button>
+        <!-- Hidden fields -->
+        <input type="hidden" id="data_type" name="data_type">
+        <input type="hidden" id="digital_signature" name="digital_signature">
+        <input type="hidden" id="encrypted_key" name="encrypted_key">
+    </form>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const fileInput = document.getElementById('fileInput');
+            const keysFileInput = document.getElementById('keysFileInput');
+
+            if (fileInput.files.length === 0) {
+                alert('Please select a file to encrypt.');
+                return;
+            }
+
+            if (keysFileInput.files.length === 0) {
+                alert('Please select a keys file.');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const fileContents = await readFile(file);
+            const symmetricKey = await generateSymmetricKey();
+            const encryptedFileContents = await encryptFileContents(symmetricKey, fileContents);
+            const keysFile = keysFileInput.files[0];
+            const publicKey = await extractPublicKey(keysFile);
+            const encryptedSymmetricKey = await encryptSymmetricKey(publicKey, symmetricKey);
+
+            // Temporarily create a Blob to handle the encrypted file contents for submission
+            const encryptedBlob = new Blob([encryptedFileContents], { type: 'application/octet-stream' });
+            const encryptedFile = new File([encryptedBlob], file.name, { type: 'application/octet-stream' });
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(encryptedFile);
+            fileInput.files = dataTransfer.files;
+
+            document.getElementById('data_type').value = file.name.split('.').pop();
+            document.getElementById('digital_signature').value = '';  // Implement digital signature if required
+            document.getElementById('encrypted_key').value = arrayBufferToBase64(encryptedSymmetricKey);
+
+            // Now submit the form
+            document.getElementById('uploadForm').submit();
+        });
+
+        function readFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(new Uint8Array(reader.result));
+                reader.onerror = reject;
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        async function generateSymmetricKey() {
+            return window.crypto.subtle.generateKey(
+                { name: 'AES-GCM', length: 256 },
+                true,
+                ['encrypt', 'decrypt']
+            );
+        }
+
+        async function encryptFileContents(key, contents) {
+            const iv = window.crypto.getRandomValues(new Uint8Array(12));
+            const encryptedContents = await window.crypto.subtle.encrypt(
+                { name: 'AES-GCM', iv: iv },
+                key,
+                contents
+            );
+            // Combine IV and encrypted data
+            const combinedData = new Uint8Array(iv.length + encryptedContents.byteLength);
+            combinedData.set(iv, 0);
+            combinedData.set(new Uint8Array(encryptedContents), iv.length);
+            return combinedData;
+        }
+
+        function extractPublicKey(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const keysText = reader.result;
+                    const startIdx = keysText.indexOf("Public Key:") + "Public Key:".length;
+                    const endIdx = keysText.indexOf("EncryptedPublic Key:");
+                    const publicKey = keysText.substring(startIdx, endIdx).trim();
+                    resolve(publicKey);
+                };
+                reader.onerror = reject;
+                reader.readAsText(file);
+            });
+        }
+
+        async function encryptSymmetricKey(publicKeyString, symmetricKey) {
+            const publicKey = await importPublicKey(publicKeyString);
+            const exportedKey = await window.crypto.subtle.exportKey('raw', symmetricKey);
+            return window.crypto.subtle.encrypt(
+                { name: 'RSA-OAEP' },
+                publicKey,
+                exportedKey
+            );
+        }
+
+        async function importPublicKey(pem) {
+            const binaryDerString = window.atob(pem);
+            const binaryDer = str2ab(binaryDerString);
+            return window.crypto.subtle.importKey(
+                'spki',
+                binaryDer,
+                {
+                    name: 'RSA-OAEP',
+                    hash: 'SHA-256'
+                },
+                true,
+                ['encrypt']
+            );
+        }
+
+        function str2ab(str) {
+            const buf = new ArrayBuffer(str.length);
+            const bufView = new Uint8Array(buf);
+            for (let i = 0, strLen = str.length; i < strLen; i++) {
+                bufView[i] = str.charCodeAt(i);
+            }
+            return buf;
+        }
+
+        function arrayBufferToBase64(buffer) {
+            let binary = '';
+            const bytes = new Uint8Array(buffer);
+            const len = bytes.byteLength;
+            for (let i = 0; i < len; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return window.btoa(binary);
+        }
+    </script>
+</body>
+</html>

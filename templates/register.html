@@ -76,9 +76,10 @@
                 const privateKeyBase64 = arrayBufferToBase64(await window.crypto.subtle.exportKey('pkcs8', keyPair.privateKey));
                 const symmetricKeyBase64 = arrayBufferToBase64(await window.crypto.subtle.exportKey('raw', symmetricKey));
                 const encryptedPublicKeyBase64 = arrayBufferToBase64(encryptedPublicKey);
+                const PublicKeyBase64 = arrayBufferToBase64(publicKey);
 
                 // Create text content for the file
-                const fileContent = `Public Key:\n${encryptedPublicKeyBase64}\nPrivate Key:\n${privateKeyBase64}\nSymmetric Key:\n${symmetricKeyBase64}\n`;
+                const fileContent = `Public Key:\n${PublicKeyBase64}\nEncryptedPublic Key:\n${encryptedPublicKeyBase64}\nPrivate Key:\n${privateKeyBase64}\nSymmetric Key:\n${symmetricKeyBase64}\n`;
 
                 // Create a Blob with the file content
                 const blob = new Blob([fileContent], { type: 'text/plain' });
